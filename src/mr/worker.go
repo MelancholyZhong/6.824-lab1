@@ -48,10 +48,10 @@ func Worker(mapf func(string, string) []KeyValue,
 	// Your worker implementation here.
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
-	workerID := strconv.Itoa(os.Getuid())
+	workerID := strconv.Itoa(os.Getpid())
 	assignedFile := AskForWork(workerID)
 	if assignedFile != "" {
-		mapWork(assignedFile, mapf)
+		mapWork(assignedFile, workerID, mapf)
 	}
 
 }
@@ -72,7 +72,7 @@ func AskForWork(workerID  string) string {
 	}
 }
 
-func mapWork(filename string, mapf func(string, string) []KeyValue) {
+func mapWork(filename string, workerID string, mapf func(string, string) []KeyValue) {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("cannot open %v", filename)
@@ -84,7 +84,7 @@ func mapWork(filename string, mapf func(string, string) []KeyValue) {
 	file.Close()
 	kva := mapf(filename, string(content))
 	sort.Sort(ByKey(kva))
-	intermediateFile, err := os.Create("intermidiate.json")
+	intermediateFile, err := os.Create("inter"+workerID+".json")
 	if err != nil {
 		log.Fatalf("cannot create new file")
 	}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"sync"
 )
 
 type Coordinator struct {
@@ -13,6 +14,7 @@ type Coordinator struct {
 	nReduce int
 	mapMonitor []workStatus
 	reduceMonitor []workStatus
+	mu sync.Mutex
 }
 
 type workStatus struct {
@@ -36,11 +38,15 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 func (c *Coordinator) AssignJob(args *AskArgs, reply *AskReply) error {
 	for i,work := range c.mapMonitor{
 		if work.status == -1 {
+			
 			c.mapMonitor[i].status = 0
 			c.mapMonitor[i].worker = args.WorkerID
 			reply.Filename = c.mapMonitor[i].workName
+			break
 		}
 	}
+
+	
 	return nil
 }
 
