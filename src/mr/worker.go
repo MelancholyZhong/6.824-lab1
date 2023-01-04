@@ -1,10 +1,13 @@
 package mr
 
-import "fmt"
-import "log"
-import "net/rpc"
-import "hash/fnv"
-
+import (
+	"fmt"
+	"hash/fnv"
+	"io/ioutil"
+	"log"
+	"net/rpc"
+	"os"
+)
 
 //
 // Map functions return a slice of KeyValue.
@@ -32,10 +35,42 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
+	assignedFile := AskForWork()
+	if assignedFile != "" {
+		mapWork(assignedFile, mapf)
+	}
 
+}
+
+func AskForWork() string {
+	args := AskArgs{}
+	args.WorkerID = "00"
+	reply := AskReply{}
+
+	ok := call("Coordinator.AssignJob", &args, &reply)
+
+	if ok {
+		fmt.Printf("reply.filename %v\n", reply.Filename)
+		return reply.Filename
+	}else {
+		fmt.Printf("call failed!\n")
+		return ""
+	}
+}
+
+func mapWork(filename string, mapf func(string, string) []KeyValue) {
+	file, err := os.Open(filename)
+		if err != nil {
+			log.Fatalf("cannot open %v", filename)
+		}
+		content, err := ioutil.ReadAll(file)
+		if err != nil {
+			log.Fatalf("cannot read %v", filename)
+		}
+		file.Close()
+		kva := mapf(filename, string(content))
 }
 
 //

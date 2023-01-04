@@ -1,15 +1,17 @@
 package mr
 
-import "log"
-import "net"
-import "os"
-import "net/rpc"
-import "net/http"
+import (
+	"log"
+	"net"
+	"net/http"
+	"net/rpc"
+	"os"
+)
 
 
 type Coordinator struct {
-	// Your definitions here.
-
+	files []string
+	nReduce int
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -21,6 +23,11 @@ type Coordinator struct {
 //
 func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	reply.Y = args.X + 1
+	return nil
+}
+
+func (c *Coordinator) AssignJob(args *AskArgs, reply *AskReply) error {
+	reply.Filename = c.files[0]
 	return nil
 }
 
@@ -61,9 +68,10 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
+	c.files = files
+	c.nReduce = nReduce
 
 	// Your code here.
-
 
 	c.server()
 	return &c
