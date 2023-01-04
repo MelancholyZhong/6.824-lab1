@@ -8,10 +8,17 @@ import (
 	"os"
 )
 
-
 type Coordinator struct {
 	files []string
 	nReduce int
+	mapMonitor []workStatus
+	reduceMonitor []workStatus
+}
+
+type workStatus struct {
+	workName string
+	status int
+	worker string
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -27,7 +34,13 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 }
 
 func (c *Coordinator) AssignJob(args *AskArgs, reply *AskReply) error {
-	reply.Filename = c.files[0]
+	for i,work := range c.mapMonitor{
+		if work.status == -1 {
+			c.mapMonitor[i].status = 0
+			c.mapMonitor[i].worker = args.WorkerID
+			reply.Filename = c.mapMonitor[i].workName
+		}
+	}
 	return nil
 }
 
@@ -70,7 +83,12 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.files = files
 	c.nReduce = nReduce
-
+	c.mapMonitor = []workStatus{}
+	for _, file := range files{
+		status := workStatus{workName: file, status: -1, worker: ""} 
+		c.mapMonitor = append(c.mapMonitor, status)
+	}
+	
 	// Your code here.
 
 	c.server()

@@ -1,12 +1,15 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
+	"strconv"
 )
 
 //
@@ -16,6 +19,14 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 //
 // use ihash(key) % NReduce to choose the reduce
@@ -37,16 +48,17 @@ func Worker(mapf func(string, string) []KeyValue,
 	// Your worker implementation here.
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
-	assignedFile := AskForWork()
+	workerID := strconv.Itoa(os.Getuid())
+	assignedFile := AskForWork(workerID)
 	if assignedFile != "" {
 		mapWork(assignedFile, mapf)
 	}
 
 }
 
-func AskForWork() string {
+func AskForWork(workerID  string) string {
 	args := AskArgs{}
-	args.WorkerID = "00"
+	args.WorkerID = workerID
 	reply := AskReply{}
 
 	ok := call("Coordinator.AssignJob", &args, &reply)
@@ -62,15 +74,28 @@ func AskForWork() string {
 
 func mapWork(filename string, mapf func(string, string) []KeyValue) {
 	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatalf("cannot open %v", filename)
+	}
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot read %v", filename)
+	}
+	file.Close()
+	kva := mapf(filename, string(content))
+	sort.Sort(ByKey(kva))
+	intermediateFile, err := os.Create("intermidiate.json")
+	if err != nil {
+		log.Fatalf("cannot create new file")
+	}
+	enc := json.NewEncoder(intermediateFile)
+	for _, kv := range kva {
+		err := enc.Encode(&kv)
 		if err != nil {
-			log.Fatalf("cannot open %v", filename)
+			log.Fatalf("cannot write kv into json")
 		}
-		content, err := ioutil.ReadAll(file)
-		if err != nil {
-			log.Fatalf("cannot read %v", filename)
-		}
-		file.Close()
-		kva := mapf(filename, string(content))
+	}
+	intermediateFile.Close()
 }
 
 //
