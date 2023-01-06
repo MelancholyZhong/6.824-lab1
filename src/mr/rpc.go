@@ -31,7 +31,9 @@ type AskArgs struct {
 }
 
 type AskReply struct {
+	FileID int
 	Filename string
+	NReduce int
 }
 
 

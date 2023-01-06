@@ -36,17 +36,25 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 }
 
 func (c *Coordinator) AssignJob(args *AskArgs, reply *AskReply) error {
+	c.mu.Lock()
+	mapFinished := true
 	for i,work := range c.mapMonitor{
 		if work.status == -1 {
-			
 			c.mapMonitor[i].status = 0
 			c.mapMonitor[i].worker = args.WorkerID
+			reply.FileID = i
 			reply.Filename = c.mapMonitor[i].workName
+			reply.NReduce  = c.nReduce
+			mapFinished = false
 			break
 		}
 	}
-
-	
+	if mapFinished {
+		reply.FileID = -1
+		reply.Filename = ""
+		reply.NReduce = c.nReduce
+	}
+	c.mu.Unlock()
 	return nil
 }
 

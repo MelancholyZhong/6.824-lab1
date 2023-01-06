@@ -49,30 +49,35 @@ func Worker(mapf func(string, string) []KeyValue,
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
 	workerID := strconv.Itoa(os.Getpid())
-	assignedFile := AskForWork(workerID)
-	if assignedFile != "" {
-		mapWork(assignedFile, workerID, mapf)
+	reply := AskForWork(workerID)
+	for reply.FileID != -1 {
+		mapWork(reply, mapf)
+		reply = AskForWork(workerID)
 	}
 
 }
 
-func AskForWork(workerID  string) string {
+func AskForWork(workerID  string) AskReply {
 	args := AskArgs{}
 	args.WorkerID = workerID
 	reply := AskReply{}
 
 	ok := call("Coordinator.AssignJob", &args, &reply)
 
-	if ok {
+	if ok && reply.FileID != -1 {
 		fmt.Printf("reply.filename %v\n", reply.Filename)
-		return reply.Filename
-	}else {
+	}else if ok {
+		fmt.Printf("Currently no work\n")
+	}else{
 		fmt.Printf("call failed!\n")
-		return ""
 	}
+
+	return reply
 }
 
-func mapWork(filename string, workerID string, mapf func(string, string) []KeyValue) {
+func mapWork(reply AskReply, mapf func(string, string) []KeyValue) {
+	filename := reply.Filename
+	nReduce := reply.NReduce
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("cannot open %v", filename)
@@ -83,19 +88,29 @@ func mapWork(filename string, workerID string, mapf func(string, string) []KeyVa
 	}
 	file.Close()
 	kva := mapf(filename, string(content))
-	sort.Sort(ByKey(kva))
-	intermediateFile, err := os.Create("inter"+workerID+".json")
-	if err != nil {
-		log.Fatalf("cannot create new file")
+	ra := []ByKey{}
+	for i:=0; i<nReduce;i++{
+		reduce := ByKey{}
+		ra = append(ra, reduce)
 	}
-	enc := json.NewEncoder(intermediateFile)
-	for _, kv := range kva {
-		err := enc.Encode(&kv)
+	for _,kv := range kva{
+		ra[ihash(kv.Key)%reply.NReduce] = append(ra[ihash(kv.Key)%reply.NReduce], kv)
+	}
+	for i,reduce := range ra {
+		sort.Sort(ra[i])
+		intermediateFile, err := os.Create("mr-"+strconv.Itoa(reply.FileID)+"-"+strconv.Itoa(i)+".json")
 		if err != nil {
-			log.Fatalf("cannot write kv into json")
+			log.Fatalf("cannot create new file")
 		}
+		enc := json.NewEncoder(intermediateFile)
+		for _, kv := range reduce {
+			err := enc.Encode(&kv)
+			if err != nil {
+				log.Fatalf("cannot write kv into json")
+			}
+		}
+		intermediateFile.Close()
 	}
-	intermediateFile.Close()
 }
 
 //
