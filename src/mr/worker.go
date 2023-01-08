@@ -48,18 +48,24 @@ func Worker(mapf func(string, string) []KeyValue,
 	// Your worker implementation here.
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
-	workerID := strconv.Itoa(os.Getpid())
-	reply := AskForWork(workerID)
-	for reply.FileID != -1 {
-		mapWork(reply, mapf)
-		reply = AskForWork(workerID)
+	reply := AskForWork(-1, "")
+	for reply.Step != "finished"{
+		finished := -1
+		if reply.FileID != -1{
+			if reply.Step == "map"{
+				finished = mapWork(reply, mapf)
+			}else{
+				finished = reduceWork(reply, reducef)
+			}
+		}
 	}
 
 }
 
-func AskForWork(workerID  string) AskReply {
+func AskForWork(finishedWork int, step string ) AskReply {
 	args := AskArgs{}
-	args.WorkerID = workerID
+	args.Finished = finishedWork
+	
 	reply := AskReply{}
 
 	ok := call("Coordinator.AssignJob", &args, &reply)
@@ -75,7 +81,7 @@ func AskForWork(workerID  string) AskReply {
 	return reply
 }
 
-func mapWork(reply AskReply, mapf func(string, string) []KeyValue) {
+func mapWork(reply AskReply, mapf func(string, string) []KeyValue) int {
 	filename := reply.Filename
 	nReduce := reply.NReduce
 	file, err := os.Open(filename)
@@ -111,36 +117,13 @@ func mapWork(reply AskReply, mapf func(string, string) []KeyValue) {
 		}
 		intermediateFile.Close()
 	}
+	return reply.FileID
 }
 
-//
-// example function to show how to make an RPC call to the coordinator.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func CallExample() {
-
-	// declare an argument structure.
-	args := ExampleArgs{}
-
-	// fill in the argument(s).
-	args.X = 99
-
-	// declare a reply structure.
-	reply := ExampleReply{}
-
-	// send the RPC request, wait for the reply.
-	// the "Coordinator.Example" tells the
-	// receiving server that we'd like to call
-	// the Example() method of struct Coordinator.
-	ok := call("Coordinator.Example", &args, &reply)
-	if ok {
-		// reply.Y should be 100.
-		fmt.Printf("reply.Y %v\n", reply.Y)
-	} else {
-		fmt.Printf("call failed!\n")
-	}
+func reduceWork(reply AskReply, reducef func(string, []string) string) int {
+	
 }
+
 
 //
 // send an RPC request to the coordinator, wait for the response.
